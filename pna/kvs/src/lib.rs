@@ -8,7 +8,7 @@ use std::collections::HashMap;
 /// ```rust
 /// use kvs::KvStore;
 ///
-/// let store = KvStore::new();
+/// let mut store = KvStore::new();
 /// store.set("foo", "bar");
 /// assert_eq!(store.get("foo"), Some(String::from("bar")));
 /// ```
@@ -26,13 +26,13 @@ impl KvStore {
     }
 
     /// Sets key to point to value
-    pub fn set(&mut self, key: String, value: String) {
-        self.inner.insert(key, value);
+    pub fn set(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.inner.insert(key.into(), value.into());
     }
 
     /// Retrives value by key
-    pub fn get(&self, key: String) -> Option<String> {
-        self.inner.get(&key).map(String::to_string)
+    pub fn get(&self, key: impl Into<String>) -> Option<String> {
+        self.inner.get(&key.into()).map(String::to_string)
     }
 
     /// Remove values from store by value
