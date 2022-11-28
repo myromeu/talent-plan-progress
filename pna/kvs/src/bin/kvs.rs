@@ -20,11 +20,7 @@ enum Commands {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let _cli = Cli::parse();
 
-    match &cli.command {
-        _ => {
-            panic!("unimplemented")
-        }
-    }
+    panic!("unimplemented")
 }
