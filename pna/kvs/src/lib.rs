@@ -1,7 +1,5 @@
 /// KvStore is key-value store built on top HashMap from std
-
 use std::collections::HashMap;
-
 
 /// KvStore stores key-value pairs in HashMap structure
 ///
