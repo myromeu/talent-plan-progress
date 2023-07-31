@@ -35,20 +35,20 @@ fn main() -> Result<()> {
                 Ok(val) => {
                     match val {
                         Some(val) => println!("{val}"),
-                        None => println!("Not found"),
+                        None => println!("Key not found"),
                     };
                     exit(0)
-                },
+                }
                 Err(err) => {
                     println!("{err}");
                     exit(1)
-                },
+                }
             }
-        },
+        }
         Commands::Set { key, value } => {
             let mut kvs = kvs::KvStore::open(cli.path.as_str())?;
             kvs.set(key.to_string(), value.to_string())
-        },
+        }
         Commands::Rm { key } => {
             let mut kvs = kvs::KvStore::open(cli.path.as_str())?;
             match kvs.remove(key.to_string()) {
@@ -56,7 +56,7 @@ fn main() -> Result<()> {
                 Err(err) => {
                     println!("{err}");
                     exit(1)
-                },
+                }
             }
         }
     }
