@@ -3,11 +3,11 @@ mod error;
 use anyhow::anyhow;
 /// KvStore is key-value store built on top HashMap from std
 pub use error::Result;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Seek, BufWriter, SeekFrom, Write, BufReader, BufRead, Read};
+use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 /// KvStore stores key-value pairs in HashMap structure
@@ -32,9 +32,8 @@ pub struct KvStore {
 impl KvStore {
     fn write_log(&mut self, command: &Command) -> Result<()> {
         let buf = serde_json::to_vec(command)?;
-        let _ = self.log_file_writer.write(buf.len().to_string().as_bytes())?;
-        let _ = self.log_file_writer.write(&[b'-'])?;
         let len = self.log_file_writer.write(&buf)? as u64;
+        let _ = self.log_file_writer.write(&[b'\n'])?;
         self.log_file_writer.flush()?;
         self.writer_pos += len;
         Ok(())
@@ -42,7 +41,10 @@ impl KvStore {
 
     /// Sets key to point to value
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        let set_cmd = Command::Set { key: key.clone(), value };
+        let set_cmd = Command::Set {
+            key: key.clone(),
+            value,
+        };
         let pos = self.writer_pos;
         self.write_log(&set_cmd)?;
         *self.index.entry(key).or_default() = pos;
@@ -53,14 +55,14 @@ impl KvStore {
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
         if let Some(pos) = self.index.get(&key) {
             self.log_file_reader.seek(SeekFrom::Start(*pos))?;
-            let mut buf = vec![];
-            self.log_file_reader.read_until(b'}', &mut buf)?;
-            let s = unsafe { String::from_utf8_unchecked(buf) };
-            self.log_file_reader.seek(SeekFrom::Start(*pos))?;
-            let cmd: Command = serde_json::from_reader(&mut self.log_file_reader)?;
+            let mut line = String::new();
+            let _ = self.log_file_reader.read_line(&mut line);
+            let cmd: Command = serde_json::from_str(line.as_str())?;
             match cmd {
                 Command::Set { value, .. } => Ok(Some(value)),
-                Command::Remove { .. } => unreachable!("we dont store keys in index for removed items"),
+                Command::Remove { .. } => {
+                    unreachable!("we dont store keys in index for removed items")
+                }
             }
         } else {
             Ok(None)
@@ -74,10 +76,10 @@ impl KvStore {
             Some(_) => {
                 let rm_cmd = Command::Remove { key };
                 self.write_log(&rm_cmd)?;
-            },
+            }
             None => {
                 return Err(anyhow!("Key not found"));
-            },
+            }
         }
         Ok(())
     }
@@ -91,45 +93,37 @@ impl KvStore {
         let mut log_file_writer = BufWriter::new(log_file);
         let log_file_reader = BufReader::new(File::open(path)?);
         let writer_pos = log_file_writer.seek(SeekFrom::End(0))?;
-        Ok(KvStore { index, log_file_reader, log_file_writer, writer_pos })
+        Ok(KvStore {
+            index,
+            log_file_reader,
+            log_file_writer,
+            writer_pos,
+        })
     }
-
 }
 
 fn read_index(path: &PathBuf) -> Result<HashMap<String, u64>> {
     let mut index = HashMap::new();
     if path.exists() {
         let mut log_file = BufReader::new(File::open(path)?);
-        //let mut deser = serde_json::Deserializer::from_reader(log_file).into_iter::<Command>();
-        let mut entry_length_buf = Vec::new();
-        let mut pos = log_file.read_until(b'-', &mut entry_length_buf)?;
-        if pos == 0 {
-            // file is empty
-            return Ok(index);
-        }
-        entry_length_buf.pop();
-        let mut entry_length: usize = String::from_utf8(entry_length_buf.clone())?.parse()?;
-        let mut entry_buf = vec![0u8; entry_length];
-        while let Ok(_) = log_file.read_exact(&mut entry_buf) {
-            let cmd = serde_json::from_slice(&entry_buf)?;
+        let mut entry_buf = String::new();
+        let mut pos = 0;
+
+        while let Ok(len) = log_file.read_line(&mut entry_buf) {
+            if len == 0 {
+                break; // file reached EOF
+            }
+            let cmd = serde_json::from_str(&entry_buf.as_str())?;
+            entry_buf.clear();
             match cmd {
                 Command::Set { key, .. } => {
                     *index.entry(key).or_default() = pos as u64;
-                },
+                }
                 Command::Remove { ref key } => {
                     index.remove(key);
-                },
+                }
             }
-            pos += entry_buf.len();
-            entry_length_buf.clear();
-            let l = log_file.read_until(b'-', &mut entry_length_buf)?;
-            entry_length_buf.pop();
-            if l == 0 {
-                break;
-            }
-            pos += l;
-            entry_length = String::from_utf8(entry_length_buf.clone())?.parse()?;
-            entry_buf = vec![0u8; entry_length];
+            pos += len;
         }
     }
     Ok(index)
