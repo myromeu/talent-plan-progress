@@ -23,6 +23,9 @@ enum Commands {
 
     /// Remove value by key
     Rm { key: String },
+
+    /// Test some functionality
+    Foo,
 }
 
 fn main() -> Result<()> {
@@ -58,6 +61,22 @@ fn main() -> Result<()> {
                     exit(1)
                 }
             }
+        }
+        Commands::Foo => {
+            let mut store = kvs::KvStore::open(cli.path.as_str())?;
+
+            store.set("key1".to_owned(), "value1".to_owned())?;
+            store.set("key2".to_owned(), "value2".to_owned())?;
+
+            //assert_eq!(store.get("key1".to_owned())?, Some("value1".to_owned()));
+            //assert_eq!(store.get("key2".to_owned())?, Some("value2".to_owned()));
+
+            println!("index before drop: {:?}", store);
+            std::thread::sleep(std::time::Duration::from_secs(10));
+
+            // Open from disk again and check persistent data.
+            drop(store);
+            Ok(())
         }
     }
 }
