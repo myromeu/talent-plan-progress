@@ -32,8 +32,8 @@ pub struct KvStore {
 impl KvStore {
     fn write_log(&mut self, command: &Command) -> Result<()> {
         let buf = serde_json::to_vec(command)?;
-        let len = self.log_file_writer.write(&buf)? as u64;
-        let _ = self.log_file_writer.write(&[b'\n'])?;
+        let mut len = self.log_file_writer.write(&buf)? as u64;
+        len += self.log_file_writer.write(&[b'\n'])? as u64;
         self.log_file_writer.flush()?;
         self.writer_pos += len;
         Ok(())
